@@ -26,14 +26,14 @@ class MCTSNode:
         best_value = float('-inf')
         best_child = None
         for child in self.children:
-            child_value = child.value / (child.visits + 1)
+            child_value = child.value / (child.visits + 1) + np.sqrt(2 * np.log(self.visits + 1) / (child.visits + 1))
             if child_value > best_value:
                 best_value = child_value
                 best_child = child
         return best_child
 
 class MCTS:
-    def __init__(self, game, simulations=1000):
+    def __init__(self, game, simulations=100000):
         self.game = game
         self.simulations = simulations
 
@@ -65,15 +65,31 @@ class MCTS:
 
     def default_policy(self, state):
         while not self.game.is_terminal(state):
-            move = random.choice(['left', 'right', 'up', 'down'])
+            move = self.weighted_random_choice(state)
             state = self.game.make_move(state, move)
-        return self.game.get_reward(state)
+        return self.heuristic(state)
+
+    def weighted_random_choice(self, state):
+        moves = ['left', 'right', 'up', 'down']
+        scores = []
+        for move in moves:
+            new_state = self.game.make_move(state, move)
+            scores.append(self.heuristic(new_state))
+        total_score = sum(scores)
+        probabilities = [score / total_score for score in scores]
+        return random.choices(moves, probabilities)[0]
 
     def backpropagate(self, node, reward):
         while node is not None:
             node.visits += 1
             node.value += reward
             node = node.parent
+
+    def heuristic(self, state):
+        score = sum(sum(row) for row in state)
+        corner_bonus = state[0][0] + state[0][3] + state[3][0] + state[3][3]
+        empty_tiles = sum(row.count(0) for row in state)
+        return score + 4 * corner_bonus + 10 * empty_tiles
 
 class Game2048:
     def __init__(self, board_size=4):
@@ -159,7 +175,7 @@ class Game2048:
         return sum(sum(row) for row in state)
 
 game = Game2048()
-mcts = MCTS(game, simulations=1000)
+mcts = MCTS(game, simulations=100000)
 
 @app.route('/next_move', methods=['POST'])
 def next_move():
