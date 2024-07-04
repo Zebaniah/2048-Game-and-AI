@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
 import random
+import copy
 import logging
 
 app = Flask(__name__)
@@ -11,9 +12,8 @@ CORS(app)  # Enable CORS
 logging.basicConfig(level=logging.DEBUG)
 
 class MCTSNode:
-    def __init__(self, state, move=None, parent=None):
+    def __init__(self, state, parent=None):
         self.state = state
-        self.move = move
         self.parent = parent
         self.children = []
         self.visits = 0
@@ -33,34 +33,32 @@ class MCTSNode:
         return best_child
 
 class MCTS:
-    def __init__(self, game, simulations=10000, max_depth=5):
+    def __init__(self, game, simulations=1000):
         self.game = game
         self.simulations = simulations
-        self.max_depth = max_depth
 
     def search(self, initial_state):
         root = MCTSNode(initial_state)
         for _ in range(self.simulations):
-            node = self.tree_policy(root, 0)
+            node = self.tree_policy(root)
             reward = self.default_policy(node.state)
             self.backpropagate(node, reward)
-        best_move = self.best_move(root)
-        return self.game.make_move(initial_state, best_move)
-    
-    def tree_policy(self, node, depth):
+        return root.best_child().state
+
+    def tree_policy(self, node):
         while not self.game.is_terminal(node.state):
-            if not node.is_fully_expanded() and depth < self.max_depth:
-                return self.expand(node, depth)
+            if not node.is_fully_expanded():
+                return self.expand(node)
             else:
                 node = node.best_child()
         return node
-    
-    def expand(self, node, depth):
+
+    def expand(self, node):
         state = node.state
         for move in ['left', 'right', 'up', 'down']:
             new_state = self.game.make_move(state, move)
             if not any(np.array_equal(child.state, new_state) for child in node.children):
-                child_node = MCTSNode(new_state, move, parent=node)
+                child_node = MCTSNode(new_state, parent=node)
                 node.children.append(child_node)
                 return child_node
         return node
@@ -76,15 +74,6 @@ class MCTS:
             node.visits += 1
             node.value += reward
             node = node.parent
-
-    def best_move(self, root):
-        best_value = float('-inf')
-        best_move = None
-        for child in root.children:
-            if child.value > best_value:
-                best_value = child.value
-                best_move = child.move
-        return best_move
 
 class Game2048:
     def __init__(self, board_size=4):
@@ -167,53 +156,10 @@ class Game2048:
         return True
 
     def get_reward(self, state):
-        score = sum(sum(row) for row in state)
-        
-        empty_tiles = sum(row.count(0) for row in state)
-        smoothness = self.calculate_smoothness(state)
-        max_tile = max(max(row) for row in state)
-        monotonicity = self.calculate_monotonicity(state)
-        
-        score += empty_tiles * 100
-        score += smoothness * 1
-        score += max_tile * 10
-        score += monotonicity * 100
-
-        # Corner strategy: reward if max tile is in a corner
-        if (state[0][0] == max_tile or state[0][self.board_size - 1] == max_tile or
-                state[self.board_size - 1][0] == max_tile or state[self.board_size - 1][self.board_size - 1] == max_tile):
-            score += max_tile * 100
-        
-        return score
-    
-    def calculate_smoothness(self, state):
-        smoothness = 0
-        for row in state:
-            for i in range(len(row) - 1):
-                smoothness -= abs(row[i] - row[i + 1])
-        for col in zip(*state):
-            for i in range(len(col) - 1):
-                smoothness -= abs(col[i] - col[i + 1])
-        return smoothness
-
-    def calculate_monotonicity(self, state):
-        monotonicity = 0
-        for row in state:
-            for i in range(len(row) - 1):
-                if row[i] > row[i + 1]:
-                    monotonicity += row[i]
-                else:
-                    monotonicity -= row[i]
-        for col in zip(*state):
-            for i in range(len(col) - 1):
-                if col[i] > col[i + 1]:
-                    monotonicity += col[i]
-                else:
-                    monotonicity -= col[i]
-        return monotonicity
+        return sum(sum(row) for row in state)
 
 game = Game2048()
-mcts = MCTS(game, simulations=10000)
+mcts = MCTS(game, simulations=1000)
 
 @app.route('/next_move', methods=['POST'])
 def next_move():
