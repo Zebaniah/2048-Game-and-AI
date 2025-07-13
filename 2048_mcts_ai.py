@@ -4,12 +4,25 @@ import numpy as np
 import random
 import copy
 import logging
+import tensorflow as tf
+import os
+import subprocess
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
+
+MODEL_PATH = "2048_model.h5"
+nn_model = None
+if not os.path.exists(MODEL_PATH):
+    try:
+        subprocess.run(["python", "2048_training_script.py"], check=True)
+    except Exception as exc:
+        logging.warning("Failed to train model automatically: %s", exc)
+if os.path.exists(MODEL_PATH):
+    nn_model = tf.keras.models.load_model(MODEL_PATH)
 
 class MCTSNode:
     def __init__(self, state, parent=None):
@@ -33,12 +46,13 @@ class MCTSNode:
         return best_child
 
 class MCTS:
-    def __init__(self, game, simulations=100000):
+    def __init__(self, game, model=None, simulations=100000):
         self.game = game
         self.simulations = simulations
+        self.model = model
 
     def search(self, initial_state):
-        root = MCTSNode(initial_state)
+        root = MCTSNode(copy.deepcopy(initial_state))
         for _ in range(self.simulations):
             node = self.tree_policy(root)
             reward = self.default_policy(node.state)
@@ -56,7 +70,7 @@ class MCTS:
     def expand(self, node):
         state = node.state
         for move in ['left', 'right', 'up', 'down']:
-            new_state = self.game.make_move(state, move)
+            new_state = self.game.make_move(copy.deepcopy(state), move)
             if not any(np.array_equal(child.state, new_state) for child in node.children):
                 child_node = MCTSNode(new_state, parent=node)
                 node.children.append(child_node)
@@ -64,17 +78,25 @@ class MCTS:
         return node
 
     def default_policy(self, state):
-        while not self.game.is_terminal(state):
-            move = self.weighted_random_choice(state)
-            state = self.game.make_move(state, move)
-        return self.heuristic(state)
+        simulation_state = copy.deepcopy(state)
+        while not self.game.is_terminal(simulation_state):
+            move = self.weighted_random_choice(simulation_state)
+            simulation_state = self.game.make_move(simulation_state, move)
+        return self.heuristic(simulation_state)
 
     def weighted_random_choice(self, state):
         moves = ['left', 'right', 'up', 'down']
         scores = []
-        for move in moves:
-            new_state = self.game.make_move(state, move)
-            scores.append(self.heuristic(new_state))
+        nn_scores = None
+        if self.model is not None:
+            board = np.array(state).flatten().reshape(1, -1)
+            nn_scores = self.model.predict(board)[0]
+        for i, move in enumerate(moves):
+            new_state = self.game.make_move(copy.deepcopy(state), move)
+            heuristic_score = self.heuristic(new_state)
+            if nn_scores is not None:
+                heuristic_score *= nn_scores[i] + 1e-6
+            scores.append(heuristic_score)
         total_score = sum(scores)
         probabilities = [score / total_score for score in scores]
         return random.choices(moves, probabilities)[0]
@@ -175,7 +197,8 @@ class Game2048:
         return sum(sum(row) for row in state)
 
 game = Game2048()
-mcts = MCTS(game, simulations=100000)
+# Use the neural network model to guide the search if available
+mcts = MCTS(game, model=nn_model, simulations=5000)
 
 @app.route('/next_move', methods=['POST'])
 def next_move():
