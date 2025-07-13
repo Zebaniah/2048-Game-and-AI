@@ -1,14 +1,18 @@
-There are 2 different AI versions here, as well as a non-ai version of the game. 
+# 2048 AI with Neural Network and MCTS
 
+This project contains a simple 2048 implementation together with a Python based AI that combines a small neural network with Monte‑Carlo Tree Search (MCTS).
 
-AI #1: Neural Network
-This AI is trained on datasets and learns how to predict the best move to play in the game. This was my first attempt. 
-How to use:
-You must first download/create many datasets (I created all of the datasets here) and put them all in a folder. Then, enter the file PATHs starting on line 21 of the training script. Then, run the training script. Assuming no errors, it will create a model. Then, run the flask server and the OG AI play in tandem. Click AI play, and it will play the game.
-This model was not amazing for me, and it's record, with me helping it, was it got to the 256 tile. 
+## Contents
+- `ai_game.html` – playable 2048 game in the browser. Press **AI Move** to let the AI choose a move.
+- `train_nn.py` – script that trains a very small neural network from the JSON move history files and saves the model as `model.json`.
+- `mcts_nn_agent.py` – implements the 2048 game logic, a neural network loader and an MCTS based agent.
+- `ai_server.py` – lightweight HTTP server that serves `ai_game.html` and provides a `/move` API returning the AI's chosen move.
+- `2048_move_history*.json` – move history data that can be used to train the neural network.
 
-AI #2: Monte Carlo Tree Search (MCTS)
-This AI uses random sampling of the game state to simulate possible moves and select the best one.
-How to use: 
-Download the MCTS python file and run it. It will create a flask server. Then download and run 2048_Game-Ai_Play.html, hit AI play, and watch the AI do its thing.
-This model has performed a bit better than the Nural network, with its record reaching the 1048 tile, but not further. 
+## Usage
+1. Run `python train_nn.py` to create `model.json`. Training uses the provided move history files.
+2. Start the web server with `python ai_server.py`.
+3. Open `http://localhost:8000/ai_game.html` in a browser.
+4. Play manually with the arrow keys or click **AI Move** to let the AI play.
+
+The neural network is intentionally small so that it can be trained without external dependencies.
