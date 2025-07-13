@@ -270,13 +270,18 @@
         const aiButton = document.createElement('button');
         aiButton.innerText = 'AI Move';
         aiButton.onclick = async () => {
-            const response = await fetch('/move', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ board })
-            });
-            const result = await response.json();
-            move(result.move);
+            try {
+                const response = await fetch(`${location.origin}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ board })
+                });
+                if (!response.ok) throw new Error('AI request failed');
+                const result = await response.json();
+                move(result.move);
+            } catch (err) {
+                alert('AI error: ' + err.message);
+            }
         };
         document.body.appendChild(aiButton);
     </script>

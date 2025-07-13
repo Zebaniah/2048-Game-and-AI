@@ -11,8 +11,9 @@ This project contains a simple 2048 implementation together with a Python based 
 
 ## Usage
 1. Run `python train_nn.py` to create `model.json`. Training uses the provided move history files.
-2. Start the web server with `python ai_server.py`.
-3. Open `http://localhost:8000/ai_game.html` in a browser.
+2. Start the web server with `python ai_server.py`. Set the `PORT` environment
+   variable if port 8000 is unavailable.
+3. Open `http://localhost:8000/` in a browser (it redirects to the game page).
 4. Play manually with the arrow keys or click **AI Move** to let the AI play.
 
 The neural network is intentionally small so that it can be trained without external dependencies.
